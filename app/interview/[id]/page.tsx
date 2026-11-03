@@ -294,19 +294,24 @@ function InterviewRoomContent() {
 
     setIsAiThinking(true);
 
-    setTimeout(() => {
-      let aiReply = '';
-      const turnCount = updatedTranscript.filter((m) => m.sender === 'candidate').length;
+    try {
+      const res = await fetch('/api/interview/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidateName: session.candidateName,
+          role: session.targetRole,
+          level: session.level,
+          stage: session.stage,
+          transcript: updatedTranscript,
+          latestMessage: text,
+        }),
+      });
 
-      if (turnCount === 1) {
-        aiReply = `Thank you for introducing yourself! Can you tell me about a challenging technical bug or problem you solved in a project, and walk me through your diagnostic process?`;
-      } else if (turnCount === 2) {
-        aiReply = `That demonstrates clear structured thinking. When working with other engineers or product managers, how do you handle differing opinions on technical trade-offs?`;
-      } else if (turnCount === 3) {
-        aiReply = `Understood. When writing production web applications, what are the primary steps you take to ensure high performance and clean code maintainability?`;
-      } else {
-        aiReply = `Thank you! That completes our core interview questions for this round. Click "Finish & Get Scorecard" to view your detailed evaluation and metrics.`;
-      }
+      const data = await res.json();
+      const aiReply = (data.success && data.reply)
+        ? data.reply
+        : `Thank you for explaining that. Based on what you just shared, can you tell me more about your experience and the technical trade-offs you considered?`;
 
       const aiMsg: TranscriptMessage = {
         id: `ai-${Date.now()}`,
@@ -319,10 +324,13 @@ function InterviewRoomContent() {
       const finalSession = { ...session, transcript: finalTranscript };
       setSession(finalSession);
       localStorage.setItem(`interview_${sessionId}`, JSON.stringify(finalSession));
-      setIsAiThinking(false);
 
       speakText(aiReply);
-    }, 1200);
+    } catch (err) {
+      console.error('Chat error:', err);
+    } finally {
+      setIsAiThinking(false);
+    }
   };
 
   const handleFinishInterview = async () => {
