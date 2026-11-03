@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { TopHeader } from '@/components/dashboard/top-header';
-import { UserProfile } from '@/lib/types/interview';
+import { useAuth } from '@/components/auth/auth-provider';
 import {
   ChevronLeft,
   ChevronRight,
@@ -13,65 +13,71 @@ import {
   Video,
   ArrowRight,
   Sparkles,
+  Mic,
+  FileText,
+  Code2,
+  CheckCircle2,
+  Play,
+  Layers,
+  Users,
 } from 'lucide-react';
 
 export default function DashboardHome() {
   const [selectedDate, setSelectedDate] = useState(13);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const { user } = useAuth();
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('interview_user');
-      if (stored) {
-        try {
-          setProfile(JSON.parse(stored));
-        } catch {}
-      }
-    }
-  }, []);
-
-  // 4 Target stages with percentage donuts
+  // 5 Target practice modules
   const practiceStages = [
     {
       id: '1',
       number: '1',
       title: 'ATS Resume Scanner',
-      subtitle: '(1 scan completed)',
-      percentage: 75,
+      subtitle: 'Audit keywords & generate questions',
+      percentage: 85,
       color: '#3b5bf5',
       href: '/interview/resume-check',
+      icon: FileText,
     },
     {
       id: '2',
       number: '2',
-      title: 'HR & Behavioral',
-      subtitle: '(STAR method)',
-      percentage: 25,
+      title: 'HR & Self Introduction',
+      subtitle: 'STAR method & soft skills practice',
+      percentage: 60,
       color: '#ff6b6b',
       href: '/interview/new?stage=level_2_behavioral',
+      icon: Users,
     },
     {
       id: '3',
       number: '3',
       title: 'Technical Screen',
-      subtitle: '(Core CS concepts)',
-      percentage: 78,
+      subtitle: 'Core CS & role-specific concepts',
+      percentage: 75,
       color: '#38bdf8',
       href: '/interview/new?stage=level_3_tech_screen',
+      icon: Mic,
     },
     {
       id: '4',
       number: '4',
-      title: 'Coding Sandbox',
-      subtitle: '(Algorithms & DS)',
-      percentage: 45,
+      title: 'Monaco Coding Sandbox',
+      subtitle: 'Algorithms & automated test suites',
+      percentage: 50,
       color: '#f59e0b',
       href: '/interview/new?stage=level_4_coding',
+      icon: Code2,
     },
   ];
 
   // Candidates / Mock Interview Progress Table
   const progressRows = [
+    {
+      name: user?.name || 'Current Candidate',
+      role: user?.targetRole?.replace('_', ' ') || 'Fullstack Developer',
+      status: 'Live Mock Prep',
+      statusColor: 'text-[#3b5bf5] bg-[#3b5bf5]',
+    },
     {
       name: 'John Doe',
       role: 'UI Designer',
@@ -89,12 +95,6 @@ export default function DashboardHome() {
       role: 'Node.js Developer',
       status: 'Resume review',
       statusColor: 'text-[#10b981] bg-[#10b981]',
-    },
-    {
-      name: 'Marie Arch',
-      role: 'Node.js Developer',
-      status: 'Task',
-      statusColor: 'text-[#ff6b6b] bg-[#ff6b6b]',
     },
     {
       name: 'Sandra Huffman',
@@ -136,7 +136,7 @@ export default function DashboardHome() {
   return (
     <div className="flex-1 flex flex-col h-full bg-[#fafbfe]">
       {/* Top Header */}
-      <TopHeader title="Dashboard" />
+      <TopHeader title="Candidate Dashboard" />
 
       {/* Main 2-Column Content Area */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-y-auto">
@@ -144,19 +144,35 @@ export default function DashboardHome() {
         <div className="lg:col-span-8 p-6 sm:p-8 space-y-6">
           {/* Blue Welcome Banner (Matching Reference Image) */}
           <div className="relative rounded-2xl bg-[#3b5bf5] p-6 sm:p-7 text-white overflow-hidden flex flex-col sm:flex-row items-center justify-between shadow-lg shadow-blue-500/15">
-            <div className="z-10 max-w-sm">
+            <div className="z-10 max-w-md">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-200 block mb-1">
+                Candidate Workspace
+              </span>
               <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
-                Hello {profile?.name || 'Candidate'}!
+                Hello {user?.name || 'Candidate'}!
               </h2>
               <p className="text-xs sm:text-sm text-blue-100 mt-1.5 leading-relaxed">
-                {profile?.email ? `Logged in as ${profile.email}. Ready for today's mock session?` : "You have 4 interview stages left to master. Ready for today's mock session? So let's start 😉"}
+                {user?.email
+                  ? `Signed in as ${user.email}. Role: ${user.targetRole?.replace('_', ' ')} (${user.level || 'Fresher'}). Ready for today's mock interview session?`
+                  : "You have 5 interview stages to master. Ready for today's mock session? So let's start 😉"}
               </p>
-              <Link
-                href="/interview/new"
-                className="inline-block mt-4 text-xs font-semibold text-white underline underline-offset-4 hover:text-blue-100 transition-colors"
-              >
-                review it!
-              </Link>
+
+              <div className="flex items-center gap-3 mt-4">
+                <Link
+                  href="/interview/new"
+                  className="px-4 py-2 rounded-xl bg-white text-[#3b5bf5] font-bold text-xs shadow-md shadow-black/10 hover:bg-blue-50 transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  <span>Start Mock Interview</span>
+                </Link>
+
+                <Link
+                  href="/interview/resume-check"
+                  className="px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white font-semibold text-xs border border-white/20 transition-colors cursor-pointer"
+                >
+                  Check Resume ATS
+                </Link>
+              </div>
             </div>
 
             {/* Illustration Graphic */}
@@ -179,15 +195,15 @@ export default function DashboardHome() {
             </div>
           </div>
 
-          {/* Section: "You need to hire" / Practice Stages */}
+          {/* Section: "You need to prepare" / Practice Stages */}
           <div>
             <div className="flex items-center justify-between mb-3.5">
-              <h3 className="text-sm font-bold text-[#1c1e2d]">You need to prepare</h3>
+              <h3 className="text-sm font-bold text-[#1c1e2d]">Interview Preparation Modules</h3>
               <Link
                 href="/interview/new"
-                className="text-xs text-[#82889e] hover:text-[#3b5bf5] font-medium"
+                className="text-xs text-[#3b5bf5] hover:underline font-semibold"
               >
-                see all
+                view all rounds →
               </Link>
             </div>
 
@@ -232,7 +248,7 @@ export default function DashboardHome() {
                         d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                       />
                     </svg>
-                    <span className="absolute text-[9px] font-mono font-bold text-[#82889e]">
+                    <span className="absolute text-[9px] font-bold text-[#51576f]">
                       {st.percentage}%
                     </span>
                   </div>

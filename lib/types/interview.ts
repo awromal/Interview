@@ -22,6 +22,7 @@ export interface UserProfile {
   name: string;
   email: string;
   targetRole?: JobRole;
+  level?: CandidateLevel;
   createdAt: string;
 }
 
