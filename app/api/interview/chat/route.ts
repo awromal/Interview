@@ -84,39 +84,49 @@ CRITICAL INSTRUCTIONS FOR LIVE CONVERSATION:
 
     // 2. Intelligent Dynamic Reactive Fallback (Reads and reacts directly to user's answer)
     const lower = latestMessage.toLowerCase();
+    const candidateDisplayName = candidateName && candidateName !== 'Candidate' ? candidateName : '';
     let dynamicReply = '';
 
     // Check if candidate asked the interviewer a question
     const isCandidateAsking = /(\?|what|how|can you tell me|could you tell me|what is the company|tech stack)/i.test(lower);
 
+    // Check if candidate is introducing themselves
+    const isSelfIntro = /^(my name is|i am|i'm|myself|hello|hi|i graduated)/i.test(lower.trim()) || lower.includes('passionate about') || lower.includes('experience in');
+
     // Detect mentioned technologies
     const detectedTech: string[] = [];
     const techWords = [
-      'react', 'next.js', 'vue', 'angular', 'node', 'express', 'python', 'django', 'fastapi',
-      'sql', 'postgresql', 'mongodb', 'docker', 'aws', 'flutter', 'dart', 'typescript', 'javascript'
+      'react', 'next.js', 'nextjs', 'vue', 'angular', 'node', 'express', 'python', 'django', 'fastapi',
+      'sql', 'postgresql', 'mongodb', 'docker', 'aws', 'flutter', 'dart', 'typescript', 'javascript',
+      'tailwind', 'git', 'redux', 'firebase'
     ];
     techWords.forEach(tw => {
       if (lower.includes(tw)) detectedTech.push(tw.toUpperCase());
     });
 
     if (isCandidateAsking) {
-      dynamicReply = `That's a great question to ask your interviewer! In our engineering team, we focus on autonomous ownership, modern CI/CD pipelines, and writing well-tested modular code. Coming back to your background, could you tell me about how you approach collaborating on pull requests or technical disagreements with teammates?`;
+      dynamicReply = `That's a thoughtful question to ask your interviewer! In our engineering team, we focus on autonomous ownership, clean architectures, and writing well-tested modular code. Coming back to your experiences${candidateDisplayName ? ', ' + candidateDisplayName : ''}, could you tell me how you handle code reviews and collaborating when teammates have differing design opinions?`;
+    } else if (isSelfIntro && detectedTech.length > 0) {
+      const techList = detectedTech.slice(0, 3).join(', ');
+      dynamicReply = `Thank you for that introduction${candidateDisplayName ? ', ' + candidateDisplayName : ''}! It's great to hear your background working with ${techList}. In your recent work with these tools, what was a key architecture decision you made and what trade-offs did you consider?`;
+    } else if (isSelfIntro) {
+      dynamicReply = `Thank you for introducing yourself${candidateDisplayName ? ', ' + candidateDisplayName : ''}! To dive deeper into your engineering experience, what is a recent software project you developed that you found most challenging and rewarding?`;
     } else if (detectedTech.length > 0) {
       const techList = detectedTech.slice(0, 2).join(' and ');
-      dynamicReply = `I love that you have hands-on experience with ${techList}! In that project, what was the most complex technical hurdle or performance bottleneck you had to overcome, and how did you resolve it?`;
+      dynamicReply = `It is impressive that you have hands-on experience with ${techList}${candidateDisplayName ? ', ' + candidateDisplayName : ''}. In that project, what was the most difficult bottleneck or bug you had to diagnose, and what steps did you take to fix it?`;
     } else if (lower.includes('project') || lower.includes('college') || lower.includes('university') || lower.includes('internship')) {
-      dynamicReply = `That sounds like a valuable real-world learning experience. When you were working on that, what was your specific personal contribution, and how did you verify that your code worked reliably?`;
+      dynamicReply = `That sounds like a valuable real-world engineering project. When you were building that, what was your specific personal role, and how did you verify that your solution handled edge cases reliably?`;
     } else if (lower.includes('bug') || lower.includes('error') || lower.includes('fix') || lower.includes('debug')) {
-      dynamicReply = `Debugging under pressure is a critical skill for any developer. When diagnosing that issue, what specific tools or logging techniques helped you isolate the root cause?`;
-    } else if (lower.includes('team') || lower.includes('colleague') || lower.includes('agile') || lower.includes('scrum')) {
-      dynamicReply = `Team collaboration is essential here. Can you tell me about a time when a teammate had a different opinion on code design or architecture, and how you reached a compromise?`;
+      dynamicReply = `Debugging complex issues requires a systematic approach. When tackling that issue, what specific logs, profilers, or testing frameworks helped you find the root cause?`;
+    } else if (lower.includes('team') || lower.includes('colleague') || lower.includes('agile') || lower.includes('scrum') || lower.includes('lead')) {
+      dynamicReply = `Team communication is vital for our culture. Can you give an example of how you communicated technical trade-offs to non-technical stakeholders or agreed on a solution with team members?`;
     } else {
       // General dynamic follow-up that acknowledges what they said
       const words = latestMessage.trim().split(/\s+/);
       if (words.length < 15) {
-        dynamicReply = `Thanks for sharing that! Could you elaborate a bit more on that experience? Specifically, walk me through an example from your code or project where you applied those concepts.`;
+        dynamicReply = `Thank you for sharing that${candidateDisplayName ? ', ' + candidateDisplayName : ''}! Could you elaborate a bit more on that? Specifically, walk me through a concrete code example or scenario where you applied that approach.`;
       } else {
-        dynamicReply = `That gives great clarity into how you think about software development. Building on that, how do you ensure that the code you write is maintainable, well-documented, and ready for production?`;
+        dynamicReply = `That provides valuable insight into your development style${candidateDisplayName ? ', ' + candidateDisplayName : ''}. Building on that, how do you approach code quality, unit testing, and ensuring systems are maintainable for the future?`;
       }
     }
 

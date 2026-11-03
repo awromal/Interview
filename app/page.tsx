@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { TopHeader } from '@/components/dashboard/top-header';
+import { UserProfile } from '@/lib/types/interview';
 import {
   ChevronLeft,
   ChevronRight,
@@ -16,6 +17,18 @@ import {
 
 export default function DashboardHome() {
   const [selectedDate, setSelectedDate] = useState(13);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('interview_user');
+      if (stored) {
+        try {
+          setProfile(JSON.parse(stored));
+        } catch {}
+      }
+    }
+  }, []);
 
   // 4 Target stages with percentage donuts
   const practiceStages = [
@@ -133,10 +146,10 @@ export default function DashboardHome() {
           <div className="relative rounded-2xl bg-[#3b5bf5] p-6 sm:p-7 text-white overflow-hidden flex flex-col sm:flex-row items-center justify-between shadow-lg shadow-blue-500/15">
             <div className="z-10 max-w-sm">
               <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
-                Hello Rahul!
+                Hello {profile?.name || 'Candidate'}!
               </h2>
               <p className="text-xs sm:text-sm text-blue-100 mt-1.5 leading-relaxed">
-                You have 4 interview stages left to master. It is a lot of work for today! So let's start 😉
+                {profile?.email ? `Logged in as ${profile.email}. Ready for today's mock session?` : "You have 4 interview stages left to master. Ready for today's mock session? So let's start 😉"}
               </p>
               <Link
                 href="/interview/new"

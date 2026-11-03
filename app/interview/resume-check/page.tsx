@@ -7,8 +7,8 @@ import { TopHeader } from '@/components/dashboard/top-header';
 import { UploadCloud, FileText, Loader2, ArrowLeft, X, Sparkles, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 
-const SAMPLE_FRESHER_RESUME = `RAHUL SHARMA
-Email: rahul.sharma@example.com | GitHub: github.com/rahul-dev | LinkedIn: linkedin.com/in/rahul-sharma
+const DEFAULT_SAMPLE_RESUME = (name = 'ARUN KUMAR', email = 'candidate@example.com') => `${name.toUpperCase()}
+Email: ${email} | GitHub: github.com/candidate-dev | LinkedIn: linkedin.com/in/candidate
 Summary:
 Recent Computer Science graduate passionate about full-stack web development and scalable distributed systems.
 Hands-on experience building web applications using React, Next.js, Node.js, and PostgreSQL.
@@ -29,13 +29,13 @@ PROJECTS:
 - Built reusable UI components and integrated Stripe payment simulation.
 
 EDUCATION:
-Bachelor of Technology in Computer Science & Engineering (2020 - 2024)
+Bachelor of Technology in Computer Science & Engineering
 CGPA: 8.6 / 10.0`;
 
 export default function ResumeCheckPage() {
   const [activeTab, setActiveTab] = useState<'upload' | 'text'>('upload');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [resumeText, setResumeText] = useState(SAMPLE_FRESHER_RESUME);
+  const [resumeText, setResumeText] = useState(DEFAULT_SAMPLE_RESUME());
   const [targetRole, setTargetRole] = useState<JobRole>('fullstack_developer');
   const [jobDescription, setJobDescription] = useState('');
   const [isDragging, setIsDragging] = useState(false);
@@ -44,6 +44,23 @@ export default function ResumeCheckPage() {
   const [errorMsg, setErrorMsg] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('interview_user');
+      if (stored) {
+        try {
+          const u = JSON.parse(stored);
+          if (u.name) {
+            setResumeText(DEFAULT_SAMPLE_RESUME(u.name, u.email || 'candidate@example.com'));
+          }
+          if (u.targetRole) {
+            setTargetRole(u.targetRole);
+          }
+        } catch {}
+      }
+    }
+  }, []);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -247,7 +264,7 @@ export default function ResumeCheckPage() {
                       <span className="text-[#82889e]">Plain Text Resume:</span>
                       <button
                         type="button"
-                        onClick={() => setResumeText(SAMPLE_FRESHER_RESUME)}
+                        onClick={() => setResumeText(DEFAULT_SAMPLE_RESUME())}
                         className="text-[#3b5bf5] hover:underline font-semibold cursor-pointer"
                       >
                         Load Sample Fresher Resume

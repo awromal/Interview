@@ -37,8 +37,10 @@ function InterviewRoomContent() {
   const [micError, setMicError] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isTranscribingAudio, setIsTranscribingAudio] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState<'en-IN' | 'en-US' | 'en-GB' | 'ml-IN'>('en-IN');
 
   const recognitionRef = useRef<any>(null);
+  const isRecordingRef = useRef<boolean>(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const transcriptAccumulatorRef = useRef<string>('');
@@ -56,10 +58,26 @@ function InterviewRoomContent() {
   // Load session from localStorage or initialize
   useEffect(() => {
     if (!sessionId) return;
+
+    let candidateName = 'Candidate';
+    if (typeof window !== 'undefined') {
+      const storedUser = localStorage.getItem('interview_user');
+      if (storedUser) {
+        try {
+          const u = JSON.parse(storedUser);
+          if (u.name) candidateName = u.name;
+        } catch {}
+      }
+    }
+
     const stored = localStorage.getItem(`interview_${sessionId}`);
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
+        if (candidateName !== 'Candidate' && (!parsed.candidateName || parsed.candidateName === 'Candidate')) {
+          parsed.candidateName = candidateName;
+          localStorage.setItem(`interview_${sessionId}`, JSON.stringify(parsed));
+        }
         setSession(parsed);
       } catch (e) {
         console.error('Failed to parse session:', e);
@@ -67,7 +85,7 @@ function InterviewRoomContent() {
     } else {
       const fallback: InterviewSession = {
         id: sessionId,
-        candidateName: 'Candidate',
+        candidateName,
         targetRole: 'fullstack_developer',
         level: 'beginner',
         stage: 'level_2_behavioral',
@@ -80,7 +98,7 @@ function InterviewRoomContent() {
             id: 'msg-0',
             sender: 'ai',
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            text: "Hello! Welcome to your mock interview session. I'm your interviewer today. Let's begin: Can you tell me about yourself, your background in software engineering, and why you are interested in this position?",
+            text: `Hello ${candidateName}! Welcome to your mock interview session. I'm your interviewer today. Let's begin: Can you tell me about yourself, your background in software engineering, and what projects you've built recently?`,
           },
         ],
       };
@@ -89,47 +107,18 @@ function InterviewRoomContent() {
     }
   }, [sessionId]);
 
-  // Setup Speech Recognition (STT)
+  // Clean up recording state on unmount
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        const recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = 'en-US';
-
-        recognition.onresult = (event: any) => {
-          let accumulated = '';
-          for (let i = 0; i < event.results.length; i++) {
-            accumulated += event.results[i][0].transcript + ' ';
-          }
-          const cleaned = accumulated.trim();
-          transcriptAccumulatorRef.current = cleaned;
-          setCandidateInput(cleaned);
-        };
-
-        recognition.onerror = (event: any) => {
-          console.warn('Speech recognition warning:', event.error);
-          if (event.error === 'not-allowed') {
-            setMicError('Microphone permission was denied. Please allow microphone access in your browser.');
-            setIsRecording(false);
-          }
-        };
-
-        recognition.onend = () => {
-          // If still marked as recording, restart to keep listening continuously
-          if (isRecording) {
-            try {
-              recognition.start();
-            } catch {}
-          }
-        };
-
-        recognitionRef.current = recognition;
+    return () => {
+      isRecordingRef.current = false;
+      if (recognitionRef.current) {
+        try { recognitionRef.current.abort(); } catch {}
       }
-    }
-  }, [isRecording]);
+      if (audioStream) {
+        audioStream.getTracks().forEach(t => t.stop());
+      }
+    };
+  }, []);
 
   // Text-To-Speech function
   const speakText = (text: string) => {
@@ -157,25 +146,91 @@ function InterviewRoomContent() {
     }
   };
 
-  // Toggle or start voice recording
+  // Safe teardown of audio and speech recognition
+  const stopRecordingCleanup = () => {
+    isRecordingRef.current = false;
+    setIsRecording(false);
+
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+      recognitionRef.current = null;
+    }
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {}
+    }
+
+    if (audioStream) {
+      audioStream.getTracks().forEach((track) => track.stop());
+      setAudioStream(null);
+    }
+  };
+
+  // Start voice recording and Web Speech recognition
   const startRecording = async () => {
     setMicError(null);
+    transcriptAccumulatorRef.current = '';
+    setCandidateInput('');
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       setAudioStream(stream);
       setIsRecording(true);
-      transcriptAccumulatorRef.current = '';
+      isRecordingRef.current = true;
 
-      // 1. Start browser speech recognition
-      if (recognitionRef.current) {
+      // Initialize Web Speech API
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
         try {
-          recognitionRef.current.start();
-        } catch (e) {
-          console.warn('Recognition start exception:', e);
+          const recognition = new SpeechRecognition();
+          recognition.continuous = true;
+          recognition.interimResults = true;
+          recognition.lang = selectedLanguage;
+          recognition.maxAlternatives = 1;
+
+          recognition.onresult = (event: any) => {
+            let fullTranscript = '';
+            for (let i = 0; i < event.results.length; i++) {
+              fullTranscript += event.results[i][0].transcript + ' ';
+            }
+            const clean = fullTranscript.trim();
+            if (clean) {
+              transcriptAccumulatorRef.current = clean;
+              setCandidateInput(clean);
+            }
+          };
+
+          recognition.onerror = (event: any) => {
+            console.warn('Speech recognition warning:', event.error);
+            if (event.error === 'not-allowed') {
+              setMicError('Microphone permission was denied. Please allow microphone access in your browser settings.');
+              stopRecordingCleanup();
+            } else if (event.error === 'no-speech') {
+              // Benign timeout while candidate thinks; do not abort
+            }
+          };
+
+          recognition.onend = () => {
+            // Restart if user is still actively recording
+            if (isRecordingRef.current && recognitionRef.current) {
+              try {
+                recognition.start();
+              } catch {}
+            }
+          };
+
+          recognition.start();
+          recognitionRef.current = recognition;
+        } catch (sttErr) {
+          console.warn('Web Speech API initialization warning:', sttErr);
         }
       }
 
-      // 2. Start MediaRecorder as reliable backup audio capture
+      // Also record raw audio as backup
       try {
         audioChunksRef.current = [];
         const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
@@ -194,71 +249,64 @@ function InterviewRoomContent() {
       console.error('Microphone access error:', err);
       setMicError('Could not access microphone. Please check your browser microphone permissions.');
       setIsRecording(false);
+      isRecordingRef.current = false;
     }
   };
 
+  // Stop recording and send the user's actual spoken response
   const stopRecordingAndSend = async () => {
-    setIsRecording(false);
-
-    // Stop recognition
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch {}
-    }
-
-    // Stop audio stream tracks
-    if (audioStream) {
-      audioStream.getTracks().forEach((track) => track.stop());
-      setAudioStream(null);
-    }
+    stopRecordingCleanup();
 
     // Check if we captured text via Web Speech
-    const capturedText = transcriptAccumulatorRef.current || candidateInput;
+    const capturedText = (transcriptAccumulatorRef.current || candidateInput).trim();
 
-    if (capturedText.trim()) {
+    if (capturedText) {
+      // User spoke and text was transcribed - send exactly what was said
       handleSendMessage(capturedText);
-    } else if (audioChunksRef.current.length > 0) {
-      // Fallback: Transcribe audio blob with Gemini
+      return;
+    }
+
+    // If live Web Speech did not catch words but we have audio, attempt cloud transcription
+    if (audioChunksRef.current.length > 0) {
       setIsTranscribingAudio(true);
       try {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         const formData = new FormData();
         formData.append('audio', audioBlob, 'candidate_voice.webm');
-        formData.append('turnCount', candidateMessages.length.toString());
 
         const res = await fetch('/api/interview/transcribe', {
           method: 'POST',
           body: formData,
         });
         const data = await res.json();
-        if (data.success && data.transcript) {
-          handleSendMessage(data.transcript);
+        if (data.success && data.transcript && data.transcript.trim()) {
+          handleSendMessage(data.transcript.trim());
+          return;
         } else {
-          setMicError('No clear speech was detected. Please try speaking again or type your answer.');
+          // Never send dummy text! Give honest guidance
+          setMicError('സംസാരം തിരിച്ചറിഞ്ഞിട്ടില്ല (No speech detected). ദയവായി വീണ്ടും സംസാരിക്കുക, അല്ലെങ്കിൽ താഴെ ടൈപ്പ് ചെയ്യുക.');
         }
       } catch (err) {
         console.error('Audio transcription failed:', err);
-        setMicError('Audio processing failed. Please type your answer or retry speaking.');
+        setMicError('വോയിസ് പ്രോസസ്സ് ചെയ്യാൻ സാധിച്ചില്ല. ദയവായി നിങ്ങളുടെ മറുപടി താഴെയുള്ള ബോക്സിൽ ടൈപ്പ് ചെയ്യുക.');
       } finally {
         setIsTranscribingAudio(false);
       }
     } else {
-      setMicError('No speech detected. Please speak into your microphone and click "Done Speaking".');
+      setMicError('സംസാരം തിരിച്ചറിഞ്ഞിട്ടില്ല. ദയവായി "Speak Answer" ക്ലിക്ക് ചെയ്ത് സംസാരിക്കുക.');
     }
   };
 
+  // Switch from live recording to text editing so user can refine before sending
+  const handleReviewAndEdit = () => {
+    stopRecordingCleanup();
+    // candidateInput already holds the transcribed words, so user can edit in text input
+  };
+
   const cancelRecording = () => {
-    setIsRecording(false);
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch {}
-    }
-    if (audioStream) {
-      audioStream.getTracks().forEach((track) => track.stop());
-      setAudioStream(null);
-    }
+    stopRecordingCleanup();
+    setCandidateInput('');
+    transcriptAccumulatorRef.current = '';
   };
 
   // Submit Answer to AI Interviewer
@@ -515,6 +563,9 @@ function InterviewRoomContent() {
                       <span className="text-xs font-bold text-[#1c1e2d]">
                         Microphone Active — Speak your answer now
                       </span>
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#e8edfc] text-[#3b5bf5] font-medium">
+                        {selectedLanguage === 'en-IN' ? 'English (India)' : selectedLanguage === 'ml-IN' ? 'Malayalam' : selectedLanguage}
+                      </span>
                     </div>
                     <button
                       onClick={cancelRecording}
@@ -525,24 +576,31 @@ function InterviewRoomContent() {
                   </div>
 
                   {/* Live speech preview */}
-                  <div className="p-3 bg-white rounded-xl border border-[#dce4f9] min-h-[48px] text-xs text-[#1c1e2d] flex items-center">
+                  <div className="p-3.5 bg-white rounded-xl border border-[#dce4f9] min-h-[56px] text-xs text-[#1c1e2d] flex items-center shadow-xs">
                     {candidateInput ? (
-                      <span className="leading-relaxed">{candidateInput}</span>
+                      <span className="leading-relaxed font-medium text-[#1c1e2d]">{candidateInput}</span>
                     ) : (
-                      <span className="text-[#82889e] italic">
-                        Listening to your voice... (words will appear here as you speak)
+                      <span className="text-[#82889e] italic flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-[#3b5bf5] animate-pulse" />
+                        Listening to your microphone... Words will appear here as you speak.
                       </span>
                     )}
                   </div>
 
-                  {/* Send Voice Answer Action */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-[#82889e]">
-                      Click button when finished speaking
-                    </span>
+                  {/* Actions */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleReviewAndEdit}
+                      disabled={!candidateInput.trim()}
+                      className="text-[11px] text-[#51576f] hover:text-[#3b5bf5] disabled:opacity-40 underline underline-offset-2 cursor-pointer font-medium"
+                    >
+                      ✏️ Edit words in text box before sending
+                    </button>
+
                     <button
                       onClick={stopRecordingAndSend}
-                      className="px-5 py-2.5 rounded-xl bg-[#3b5bf5] hover:bg-[#2e4de6] text-white font-bold text-xs shadow-md shadow-blue-500/20 flex items-center gap-2 cursor-pointer transition-all"
+                      className="px-5 py-2.5 rounded-xl bg-[#3b5bf5] hover:bg-[#2e4de6] text-white font-bold text-xs shadow-md shadow-blue-500/20 flex items-center gap-2 cursor-pointer transition-all ml-auto"
                     >
                       <Check className="w-4 h-4 stroke-[3]" />
                       <span>Done Speaking (Send Answer)</span>
@@ -558,23 +616,21 @@ function InterviewRoomContent() {
               ) : (
                 /* DEFAULT INPUT BAR */
                 <div>
-                  {/* Quick Starter Chips */}
-                  <div className="flex items-center gap-1.5 mb-2.5 overflow-x-auto pb-1 text-[11px]">
-                    <span className="text-[#82889e] flex-shrink-0">Quick starters:</span>
-                    {[
-                      'I have experience developing full-stack web applications and collaborating with teams.',
-                      'In a recent project, I diagnosed and fixed an asynchronous state bug with unit tests.',
-                      'When reviewing code, I focus on constructive feedback and shared architecture patterns.',
-                    ].map((starter, sIdx) => (
-                      <button
-                        key={sIdx}
-                        type="button"
-                        onClick={() => setCandidateInput(starter)}
-                        className="px-2.5 py-1 rounded-lg bg-[#f4f6fc] border border-[#e2e7f3] text-[#51576f] hover:text-[#3b5bf5] hover:border-[#3b5bf5] whitespace-nowrap transition-colors cursor-pointer"
+                  <div className="flex items-center justify-between gap-2 mb-2 text-[11px] text-[#82889e]">
+                    <div className="flex items-center gap-2">
+                      <span>Mic Language:</span>
+                      <select
+                        value={selectedLanguage}
+                        onChange={(e) => setSelectedLanguage(e.target.value as any)}
+                        className="bg-[#f4f6fc] border border-[#e2e7f3] rounded-lg px-2 py-0.5 text-xs text-[#1c1e2d] focus:outline-none focus:border-[#3b5bf5] cursor-pointer"
                       >
-                        "{starter.slice(0, 36)}..."
-                      </button>
-                    ))}
+                        <option value="en-IN">English (India) - en-IN</option>
+                        <option value="en-US">English (US) - en-US</option>
+                        <option value="en-GB">English (UK) - en-GB</option>
+                        <option value="ml-IN">Malayalam (മലയാളം) - ml-IN</option>
+                      </select>
+                    </div>
+                    <span className="hidden sm:inline">Tip: Answer naturally using STAR framework (Situation, Task, Action, Result)</span>
                   </div>
 
                   <div className="flex items-center gap-2.5">
@@ -587,7 +643,7 @@ function InterviewRoomContent() {
                       <span>Speak Answer</span>
                     </button>
 
-                    {/* Text fallback input */}
+                    {/* Text input */}
                     <input
                       type="text"
                       value={candidateInput}
@@ -609,8 +665,8 @@ function InterviewRoomContent() {
                   </div>
 
                   <div className="text-[11px] text-[#82889e] mt-2 px-1 flex justify-between">
-                    <span>Click <strong>"Speak Answer"</strong> to answer out loud using your voice.</span>
-                    <span>Press Enter to Submit Text</span>
+                    <span>Click <strong>"Speak Answer"</strong> to answer out loud with your real voice.</span>
+                    <span>Press Enter to Submit</span>
                   </div>
                 </div>
               )}

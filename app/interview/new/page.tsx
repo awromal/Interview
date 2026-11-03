@@ -12,11 +12,24 @@ function SetupForm() {
   const searchParams = useSearchParams();
   const defaultStage = (searchParams.get('stage') as InterviewStage) || 'level_2_behavioral';
 
-  const [candidateName, setCandidateName] = useState('Rahul');
+  const [candidateName, setCandidateName] = useState('');
   const [targetRole, setTargetRole] = useState<JobRole>('fullstack_developer');
   const [level, setLevel] = useState<CandidateLevel>('beginner');
   const [stage, setStage] = useState<InterviewStage>(defaultStage);
   const [isStarting, setIsStarting] = useState(false);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('interview_user');
+      if (stored) {
+        try {
+          const u = JSON.parse(stored);
+          if (u.name) setCandidateName(u.name);
+          if (u.targetRole) setTargetRole(u.targetRole);
+        } catch {}
+      }
+    }
+  }, []);
 
   const stagesList = [
     {
@@ -103,7 +116,7 @@ function SetupForm() {
               value={candidateName}
               onChange={(e) => setCandidateName(e.target.value)}
               className="w-full bg-[#fafbfe] border border-[#e2e7f3] rounded-xl px-3.5 py-2.5 text-xs text-[#1c1e2d] focus:outline-none focus:border-[#3b5bf5]"
-              placeholder="e.g. Rahul Sharma"
+              placeholder="e.g. Arun Kumar"
             />
           </div>
 

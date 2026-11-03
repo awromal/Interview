@@ -21,7 +21,15 @@ export async function POST(req: NextRequest) {
 
     const sessionId = 'session_' + Math.random().toString(36).substring(2, 9);
 
-    const initialAiGreeting = `Hello ${candidateName || 'there'}! Welcome to your ${selectedStage.replace('level_', 'Stage ').replace('_', ' ')} interview for the ${selectedRole.replace('_', ' ')} position. I'm your AI interviewer today. Whenever you're ready, let's begin with our first question!`;
+    let initialAiGreeting = `Hello ${candidateName || 'there'}! Welcome to your mock interview session for the ${selectedRole.replace('_', ' ')} position. I'm your interviewer today. Let's begin: Can you introduce yourself, your experience in software development, and what projects you are currently building?`;
+
+    if (selectedStage === 'level_2_behavioral') {
+      initialAiGreeting = `Hello ${candidateName || 'there'}! Welcome to your HR & Behavioral interview for the ${selectedRole.replace('_', ' ')} position. I'm your interviewer today. To get started, could you please introduce yourself, tell me about your background, and what drives your passion in software engineering?`;
+    } else if (selectedStage === 'level_3_tech_screen') {
+      initialAiGreeting = `Hello ${candidateName || 'there'}! Welcome to your Technical Fundamentals round for the ${selectedRole.replace('_', ' ')} role. To get started: What programming languages and frameworks are in your core tech stack, and how do you decide which technology to use for a new project?`;
+    } else if (selectedStage === 'level_5_system_design') {
+      initialAiGreeting = `Hello ${candidateName || 'there'}! Welcome to the System Design round. Today we'll explore scalable architectures. To begin, could you walk me through how you approach designing a scalable web service with high availability and database performance?`;
+    }
 
     const newSession: InterviewSession = {
       id: sessionId,

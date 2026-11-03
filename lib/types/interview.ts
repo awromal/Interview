@@ -18,6 +18,13 @@ export type JobRole =
   | 'devops_engineer'
   | 'ai_ml_engineer';
 
+export interface UserProfile {
+  name: string;
+  email: string;
+  targetRole?: JobRole;
+  createdAt: string;
+}
+
 export interface TestCase {
   id: string;
   input: string;
